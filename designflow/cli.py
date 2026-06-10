@@ -11,6 +11,7 @@ from .commands.cmd_resize import resize, list_presets
 from .commands.cmd_caption import caption
 from .commands.cmd_export import export
 from .commands.cmd_check import check
+from .commands.cmd_publish import publish
 
 from .utils import console, print_header
 
@@ -58,6 +59,7 @@ cli.add_command(list_presets, name="presets")
 cli.add_command(caption)
 cli.add_command(export)
 cli.add_command(check)
+cli.add_command(publish)
 
 
 @cli.command("info")
@@ -82,6 +84,7 @@ def show_info():
         ("caption", "添加水印和署名"),
         ("export", "导出压缩包和清单"),
         ("check", "质量检查和预览"),
+        ("publish", "一键批量发布工作流"),
         ("info", "显示工具信息"),
     ]
     for cmd, desc in commands:
@@ -103,7 +106,10 @@ DesignFlow 使用指南
 
 设计工作流:
 
-  init → import → theme → compose → resize → caption → check → export
+  designflow init → import → theme → compose → resize → caption → check → export
+
+  快捷方式:
+    designflow publish --profile wechat   # 使用预设一键发布全流程
 
 命令说明:
 
@@ -139,6 +145,10 @@ DesignFlow 使用指南
 
   [cyan]designflow check all --fix[/cyan]
     执行完整检查并自动修复问题。
+
+  [cyan]designflow publish --profile wechat[/cyan]
+    一键发布：compose → resize → caption → export 全流程。
+    支持 wechat/xiaohongshu/weibo/all 等预设，也可自定义 profile。
 
   [cyan]designflow export zip[/cyan]
     打包所有生成的图片为压缩包。

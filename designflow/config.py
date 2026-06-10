@@ -11,6 +11,8 @@ PROJECT_CONFIG_FILENAME = "designflow.yaml"
 ARTICLES_FILENAME = "articles.yaml"
 THEMES_FILENAME = "themes.yaml"
 HISTORY_FILENAME = "history.yaml"
+PROFILES_FILENAME = "profiles.yaml"
+FAILED_TASKS_FILENAME = "failed_tasks.yaml"
 
 
 @dataclass
@@ -69,6 +71,33 @@ class Theme:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Theme":
+        return cls(**{k: v for k, v in data.items() if k in cls.__annotations__})
+
+
+@dataclass
+class PublishProfile:
+    name: str
+    display_name: str = ""
+    description: str = ""
+    theme: str = "default"
+    sizes: list = field(default_factory=lambda: ["wechat", "weibo", "xiaohongshu"])
+    include_quote: bool = True
+    numbering: bool = True
+    overlay_position: str = "bottom"
+    watermark_text: str = ""
+    watermark_position: str = "bottom-right"
+    watermark_opacity: float = 0.6
+    signature_text: str = ""
+    signature_author: str = ""
+    export_zip: bool = True
+    export_share_formats: list = field(default_factory=lambda: ["markdown"])
+    platforms: list = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "PublishProfile":
         return cls(**{k: v for k, v in data.items() if k in cls.__annotations__})
 
 
@@ -342,3 +371,114 @@ def get_project_dirs(project_root: Path) -> Dict[str, Path]:
 def ensure_dirs(dirs: Dict[str, Path]) -> None:
     for path in dirs.values():
         path.mkdir(parents=True, exist_ok=True)
+
+
+DEFAULT_PROFILES: Dict[str, PublishProfile] = {
+    "wechat": PublishProfile(
+        name="wechat",
+        display_name="微信公众号",
+        description="针对微信公众号优化的发布配置",
+        theme="default",
+        sizes=["wechat", "cover"],
+        include_quote=True,
+        numbering=False,
+        overlay_position="bottom",
+        watermark_text="",
+        watermark_position="bottom-right",
+        watermark_opacity=0.5,
+        export_zip=True,
+        export_share_formats=["markdown"],
+    ),
+    "xiaohongshu": PublishProfile(
+        name="xiaohongshu",
+        display_name="小红书",
+        description="针对小红书3:4竖图优化的发布配置",
+        theme="warm",
+        sizes=["xiaohongshu", "xiaohongshu-1-1"],
+        include_quote=True,
+        numbering=True,
+        overlay_position="center",
+        watermark_text="",
+        watermark_position="bottom-right",
+        watermark_opacity=0.4,
+        export_zip=True,
+        export_share_formats=["markdown", "txt"],
+    ),
+    "weibo": PublishProfile(
+        name="weibo",
+        display_name="微博",
+        description="微博正方形配图和长图配置",
+        theme="vibrant",
+        sizes=["weibo", "wechat-vertical"],
+        include_quote=False,
+        numbering=False,
+        overlay_position="bottom",
+        watermark_text="",
+        watermark_position="top-right",
+        watermark_opacity=0.6,
+        export_zip=True,
+        export_share_formats=["txt"],
+    ),
+    "all": PublishProfile(
+        name="all",
+        display_name="全平台",
+        description="所有平台尺寸一次性生成",
+        theme="default",
+        sizes=["wechat", "weibo", "xiaohongshu", "xiaohongshu-1-1", "douyin", "bilibili", "zhihu", "twitter", "linkedin", "cover"],
+        include_quote=True,
+        numbering=True,
+        overlay_position="bottom",
+        watermark_text="",
+        watermark_position="bottom-right",
+        watermark_opacity=0.6,
+        export_zip=True,
+        export_share_formats=["markdown", "html", "csv", "json"],
+    ),
+}
+
+
+def load_profiles(project_root: Path) -> Dict[str, PublishProfile]:
+    profiles_path = project_root / PROFILES_FILENAME
+    profiles = {k: copy.deepcopy(v) for k, v in DEFAULT_PROFILES.items()}
+    if profiles_path.exists():
+        with open(profiles_path, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+        custom_profiles = data.get("profiles", [])
+        for p in custom_profiles:
+            profile = PublishProfile.from_dict(p)
+            profiles[profile.name] = profile
+    return profiles
+
+
+def save_profiles(project_root: Path, profiles: Dict[str, PublishProfile]) -> None:
+    profiles_path = project_root / PROFILES_FILENAME
+    profiles_to_save = []
+    for name, profile in profiles.items():
+        if name in DEFAULT_PROFILES:
+            default = DEFAULT_PROFILES[name]
+            if profile.to_dict() != default.to_dict():
+                profiles_to_save.append(profile)
+        else:
+            profiles_to_save.append(profile)
+    with open(profiles_path, "w", encoding="utf-8") as f:
+        yaml.dump({"profiles": [p.to_dict() for p in profiles_to_save]}, f, default_flow_style=False, allow_unicode=True)
+
+
+def load_failed_tasks(project_root: Path) -> list:
+    tasks_path = project_root / FAILED_TASKS_FILENAME
+    if not tasks_path.exists():
+        return []
+    with open(tasks_path, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f) or []
+
+
+def save_failed_tasks(project_root: Path, failed: list) -> None:
+    tasks_path = project_root / FAILED_TASKS_FILENAME
+    with open(tasks_path, "w", encoding="utf-8") as f:
+        yaml.dump(failed, f, default_flow_style=False, allow_unicode=True)
+
+
+def clear_failed_tasks(project_root: Path) -> None:
+    tasks_path = project_root / FAILED_TASKS_FILENAME
+    if tasks_path.exists():
+        tasks_path.unlink()

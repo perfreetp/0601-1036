@@ -121,17 +121,86 @@ def export_zip(input_dir, output_path, name, include_metadata, include_manifest)
                 zf.writestr("metadata.json", metadata_content)
 
             if include_manifest:
-                manifest_lines = [f"# {config.name} - 第{config.issue}期",
-                                 f"# 生成时间: {timestamp()}",
-                                 f"# 主题: {config.current_theme}",
-                                 f"# 文件数: {len(images)}",
-                                 ""]
+                articles = load_articles(project_root)
+                articles_by_slug = {}
+                for a in articles:
+                    from ..utils import slugify
+                    articles_by_slug[slugify(a.title)] = a
+
+                article_groups = {}
+                from ..config import SIZE_PRESETS
+                preset_names = list(SIZE_PRESETS.keys())
+
                 for img_path in sorted(images):
+                    stem = img_path.stem
+                    matched_art = None
+                    matched_preset = None
+
+                    for p_name in preset_names:
+                        if f"_{p_name}" in stem:
+                            matched_preset = p_name
+                            break
+
+                    for slug, art in articles_by_slug.items():
+                        if slug in stem:
+                            matched_art = art
+                            break
+
+                    art_id = matched_art.id if matched_art else "unknown"
+                    if art_id not in article_groups:
+                        article_groups[art_id] = {
+                            "title": matched_art.title if matched_art else "未分类",
+                            "files": [],
+                        }
                     info = get_image_info(img_path)
-                    size = f"{info.get('width', '?')}x{info.get('height', '?')}"
-                    size_kb = info.get("size_kb", 0)
-                    manifest_lines.append(f"{img_path.name:<50} {size:<15} {size_kb:>8.1f} KB")
-                zf.writestr("manifest.txt", "\n".join(manifest_lines))
+                    article_groups[art_id]["files"].append({
+                        "filename": img_path.name,
+                        "path": str(img_path.relative_to(input_dir)),
+                        "preset": matched_preset or "",
+                        "width": info.get("width"),
+                        "height": info.get("height"),
+                        "size_kb": info.get("size_kb"),
+                    })
+
+                manifest = {
+                    "project": config.name,
+                    "issue": config.issue,
+                    "generated_at": timestamp(),
+                    "theme": config.current_theme,
+                    "total_files": len(images),
+                    "articles_count": len([k for k in article_groups if k != "unknown"]),
+                    "articles": list(article_groups.values()),
+                }
+                zf.writestr("manifest.json", json.dumps(manifest, indent=2, ensure_ascii=False))
+
+                md_lines = [f"# {config.name} - 第{config.issue}期 素材清单",
+                            f"",
+                            f"- **生成时间**: {timestamp()}",
+                            f"- **主题**: {config.current_theme}",
+                            f"- **总文件数**: {len(images)}",
+                            f"",
+                            f"---",
+                            f""]
+                for i, (aid, grp) in enumerate(
+                    [(k, v) for k, v in article_groups.items() if k != "unknown"], 1
+                ):
+                    md_lines.append(f"## {i}. {grp['title']}")
+                    md_lines.append("")
+                    md_lines.append("| 平台/类型 | 文件名 | 尺寸 | 大小 |")
+                    md_lines.append("|-----------|--------|------|------|")
+                    for f in grp["files"]:
+                        size_str = f"{f['width']}×{f['height']}"
+                        kb = f.get("size_kb", 0)
+                        md_lines.append(f"| {f['preset'] or '封面'} | {f['filename']} | {size_str} | {kb:.1f} KB |")
+                    md_lines.append("")
+                if "unknown" in article_groups:
+                    md_lines.append("## 其他文件")
+                    md_lines.append("")
+                    for f in article_groups["unknown"]["files"]:
+                        size_str = f"{f['width']}×{f['height']}"
+                        md_lines.append(f"- {f['filename']} ({size_str})")
+                    md_lines.append("")
+                zf.writestr("MANIFEST.md", "\n".join(md_lines))
 
     except Exception as e:
         print_error(f"打包失败: {str(e)}")
@@ -204,16 +273,29 @@ def generate_share_list(fmt, output_path, input_dir):
 
     grouped = {}
     for img_path in images:
-        for slug, art in articles_by_slug.items():
-            if slug in img_path.stem:
-                art_id = art.id
-                break
-        else:
-            art_id = "unknown"
+        matched_art = None
+        matched_preset = None
+        img_stem = img_path.stem
 
+        from ..config import SIZE_PRESETS
+        for p in SIZE_PRESETS:
+            p_name = p.name
+            if f"_{p_name}" in img_stem:
+                matched_preset = p_name
+                break
+
+        for slug, art in articles_by_slug.items():
+            if slug in img_stem:
+                matched_art = art
+                break
+
+        art_id = matched_art.id if matched_art else "unknown"
         if art_id not in grouped:
             grouped[art_id] = []
-        grouped[art_id].append(img_path)
+        grouped[art_id].append({
+            "path": img_path,
+            "preset": matched_preset,
+        })
 
     output_dir = output_path.parent if output_path else dirs["export"]
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -243,30 +325,56 @@ def _generate_share_content(config, articles, grouped, fmt: str) -> str:
     known_articles = [(aid, grouped[aid]) for aid in grouped if aid in articles_by_id]
     known_articles.sort(key=lambda x: articles_by_id[x[0]].order)
 
+    def _get_file_info(item):
+        path = item["path"]
+        preset = item.get("preset", "")
+        try:
+            info = get_image_info(path)
+            w = info.get("width", "?")
+            h = info.get("height", "?")
+            size_str = f"{w}×{h}"
+        except Exception:
+            size_str = "未知"
+        return {
+            "name": path.name,
+            "preset": preset,
+            "size": size_str,
+        }
+
     if fmt == "markdown":
         lines = [
             f"# {config.name} · 第{config.issue}期",
             "",
             f"> 生成时间: {timestamp()}",
+            f"> 主题: {config.current_theme}",
             "",
             "## 本期目录",
             "",
         ]
-        for i, (aid, files) in enumerate(known_articles, 1):
+        for i, (aid, items) in enumerate(known_articles, 1):
             art = articles_by_id[aid]
-            lines.append(f"{i}. **{art.title}**")
+            lines.append(f"### {i}. {art.title}")
             if art.subtitle:
-                lines.append(f"   {art.subtitle}")
+                lines.append(f"> {art.subtitle}")
             if art.author:
-                lines.append(f"   作者: {art.author}")
-            lines.append(f"   配图: {len(files)} 张")
+                lines.append(f"**作者**: {art.author}")
+            lines.append("")
+            lines.append("| 平台/类型 | 文件名 | 尺寸 |")
+            lines.append("|-----------|--------|------|")
+            for item in items:
+                finfo = _get_file_info(item)
+                preset = finfo["preset"] or "封面"
+                lines.append(f"| {preset} | {finfo['name']} | {finfo['size']} |")
             lines.append("")
 
         if "unknown" in grouped:
-            lines.append("## 其他图片")
+            lines.append("### 其他图片")
             lines.append("")
-            for f in grouped["unknown"]:
-                lines.append(f"- {f.name}")
+            lines.append("| 文件名 | 尺寸 |")
+            lines.append("|--------|------|")
+            for item in grouped["unknown"]:
+                finfo = _get_file_info(item)
+                lines.append(f"| {finfo['name']} | {finfo['size']} |")
             lines.append("")
 
         lines.append("---")
@@ -282,36 +390,45 @@ def _generate_share_content(config, articles, grouped, fmt: str) -> str:
     <meta charset="UTF-8">
     <title>{config.name} · 第{config.issue}期</title>
     <style>
-        body {{ font-family: -apple-system, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }}
+        body {{ font-family: -apple-system, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; }}
         h1 {{ color: #333; border-bottom: 2px solid #0984E3; padding-bottom: 10px; }}
         h2 {{ color: #555; margin-top: 30px; }}
         .article {{ margin: 20px 0; padding: 15px; background: #f5f5f5; border-radius: 8px; }}
         .article h3 {{ margin: 0 0 10px 0; color: #333; }}
         .meta {{ color: #666; font-size: 0.9em; }}
-        .count {{ display: inline-block; background: #0984E3; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.8em; }}
+        table {{ border-collapse: collapse; width: 100%; margin: 10px 0; }}
+        th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 0.9em; }}
+        th {{ background: #0984E3; color: white; }}
         footer {{ margin-top: 40px; color: #999; text-align: center; font-size: 0.8em; }}
     </style>
 </head>
 <body>
     <h1>{config.name} · 第{config.issue}期</h1>
-    <p style="color:#999;">生成时间: {timestamp()}</p>
+    <p style="color:#999;">生成时间: {timestamp()} | 主题: {config.current_theme}</p>
     <h2>本期目录</h2>
 """
-        for i, (aid, files) in enumerate(known_articles, 1):
+        for i, (aid, items) in enumerate(known_articles, 1):
             art = articles_by_id[aid]
             html += f"""
     <div class="article">
         <h3>{i}. {art.title}</h3>
         {f'<p class="meta">{art.subtitle}</p>' if art.subtitle else ''}
         {f'<p class="meta">作者: {art.author}</p>' if art.author else ''}
-        <p class="meta">配图 <span class="count">{len(files)}</span> 张</p>
-    </div>
+        <table>
+            <tr><th>平台/类型</th><th>文件名</th><th>尺寸</th></tr>
 """
+            for item in items:
+                finfo = _get_file_info(item)
+                preset = finfo["preset"] or "封面"
+                html += f"            <tr><td>{preset}</td><td>{finfo['name']}</td><td>{finfo['size']}</td></tr>\n"
+            html += "        </table>\n    </div>\n"
 
         if "unknown" in grouped:
-            html += f"<h2>其他图片 ({len(grouped['unknown'])} 张)</h2>"
-            for f in grouped["unknown"]:
-                html += f"<p>{f.name}</p>"
+            html += f"<h2>其他图片 ({len(grouped['unknown'])} 张)</h2><table>"
+            for item in grouped["unknown"]:
+                finfo = _get_file_info(item)
+                html += f"<tr><td>{finfo['name']}</td><td>{finfo['size']}</td></tr>"
+            html += "</table>"
 
         html += """
     <footer>由 DesignFlow 创意设计平台生成</footer>
@@ -323,14 +440,16 @@ def _generate_share_content(config, articles, grouped, fmt: str) -> str:
         import io
         output = io.StringIO()
         writer = csv.writer(output)
-        writer.writerow(["序号", "文章标题", "副标题", "作者", "配图数量", "文件列表"])
-        for i, (aid, files) in enumerate(known_articles, 1):
+        writer.writerow(["文章", "平台/类型", "文件名", "尺寸"])
+        for aid, items in known_articles:
             art = articles_by_id[aid]
-            file_list = "; ".join([f.name for f in files])
-            writer.writerow([i, art.title, art.subtitle, art.author, len(files), file_list])
+            for item in items:
+                finfo = _get_file_info(item)
+                writer.writerow([art.title, finfo["preset"] or "封面", finfo["name"], finfo["size"]])
         if "unknown" in grouped:
-            file_list = "; ".join([f.name for f in grouped["unknown"]])
-            writer.writerow(["", "其他", "", "", len(grouped["unknown"]), file_list])
+            for item in grouped["unknown"]:
+                finfo = _get_file_info(item)
+                writer.writerow(["其他", "", finfo["name"], finfo["size"]])
         return output.getvalue()
 
     elif fmt == "json":
@@ -339,10 +458,19 @@ def _generate_share_content(config, articles, grouped, fmt: str) -> str:
             "issue": config.issue,
             "generated_at": timestamp(),
             "theme": config.current_theme,
+            "total_files": sum(len(v) for v in grouped.values()),
             "articles": [],
         }
-        for i, (aid, files) in enumerate(known_articles, 1):
+        for i, (aid, items) in enumerate(known_articles, 1):
             art = articles_by_id[aid]
+            files_data = []
+            for item in items:
+                finfo = _get_file_info(item)
+                files_data.append({
+                    "filename": finfo["name"],
+                    "preset": finfo["preset"] or "",
+                    "size": finfo["size"],
+                })
             data["articles"].append({
                 "order": i,
                 "title": art.title,
@@ -350,33 +478,43 @@ def _generate_share_content(config, articles, grouped, fmt: str) -> str:
                 "author": art.author,
                 "quote": art.quote,
                 "keywords": art.keywords,
-                "file_count": len(files),
-                "files": [f.name for f in files],
+                "file_count": len(items),
+                "files": files_data,
             })
         if "unknown" in grouped:
-            data["other_files"] = [f.name for f in grouped["unknown"]]
+            data["other_files"] = [_get_file_info(item) for item in grouped["unknown"]]
         return json.dumps(data, indent=2, ensure_ascii=False)
 
     else:
         lines = [
             f"{config.name} · 第{config.issue}期",
-            f"{'=' * 40}",
+            f"{'=' * 50}",
             f"生成时间: {timestamp()}",
             f"主题: {config.current_theme}",
+            f"总图片数: {sum(len(v) for v in grouped.values())}",
             "",
             "本期目录:",
-            "-" * 40,
+            "-" * 50,
         ]
-        for i, (aid, files) in enumerate(known_articles, 1):
+        for i, (aid, items) in enumerate(known_articles, 1):
             art = articles_by_id[aid]
             lines.append(f"{i:2d}. {art.title}")
             if art.subtitle:
                 lines.append(f"    {art.subtitle}")
             if art.author:
                 lines.append(f"    作者: {art.author}")
-            lines.append(f"    配图: {len(files)} 张")
+            for item in items:
+                finfo = _get_file_info(item)
+                preset = finfo["preset"] or "封面"
+                lines.append(f"       [{preset}] {finfo['name']} ({finfo['size']})")
             lines.append("")
-        lines.append("-" * 40)
+        if "unknown" in grouped:
+            lines.append(f"其他图片 ({len(grouped['unknown'])} 张):")
+            for item in grouped["unknown"]:
+                finfo = _get_file_info(item)
+                lines.append(f"  • {finfo['name']} ({finfo['size']})")
+            lines.append("")
+        lines.append("-" * 50)
         lines.append("由 DesignFlow 生成")
         return "\n".join(lines)
 
