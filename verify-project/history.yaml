@@ -1,0 +1,35 @@
+- action: watermark
+  opacity: 0.6
+  position: bottom-right
+  processed: 3
+  remove: false
+  replace: true
+  skipped: 0
+  text: ' 新版水印'
+  timestamp: '2026-06-10 21:08:02'
+- action: export_zip
+  file_count: 3
+  output: output\export\subdir\verify-fixes_issue099_20260610_210530.zip
+  size_kb: 6343.41
+  timestamp: '2026-06-10 21:05:30'
+- action: export_zip
+  file_count: 3
+  output: output\export\custom_name.zip
+  size_kb: 6343.41
+  timestamp: '2026-06-10 21:05:30'
+- action: watermark
+  opacity: 0.6
+  position: bottom-right
+  processed: 3
+  remove: false
+  replace: false
+  skipped: 0
+  text: ' 测试刊'
+  timestamp: '2026-06-10 21:04:20'
+- action: compose
+  articles_count: 3
+  generated_count: 3
+  sizes:
+  - cover
+  theme: default
+  timestamp: '2026-06-10 21:01:56'

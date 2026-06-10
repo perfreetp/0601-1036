@@ -1,6 +1,7 @@
 import os
 import json
 import yaml
+import copy
 from pathlib import Path
 from typing import Dict, Any, Optional
 from dataclasses import dataclass, asdict, field
@@ -276,7 +277,7 @@ def save_articles(project_root: Path, articles: list[Article]) -> None:
 
 def load_themes(project_root: Path) -> Dict[str, Theme]:
     themes_path = project_root / THEMES_FILENAME
-    themes = dict(DEFAULT_THEMES)
+    themes = {k: copy.deepcopy(v) for k, v in DEFAULT_THEMES.items()}
     if themes_path.exists():
         with open(themes_path, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
@@ -285,6 +286,20 @@ def load_themes(project_root: Path) -> Dict[str, Theme]:
             theme = Theme.from_dict(t)
             themes[theme.name] = theme
     return themes
+
+
+def save_themes(project_root: Path, themes: Dict[str, Theme]) -> None:
+    themes_path = project_root / THEMES_FILENAME
+    themes_to_save = []
+    for name, theme_obj in themes.items():
+        if name in DEFAULT_THEMES:
+            default = DEFAULT_THEMES[name]
+            if theme_obj.to_dict() != default.to_dict():
+                themes_to_save.append(theme_obj)
+        else:
+            themes_to_save.append(theme_obj)
+    with open(themes_path, "w", encoding="utf-8") as f:
+        yaml.dump({"themes": [t.to_dict() for t in themes_to_save]}, f, default_flow_style=False, allow_unicode=True)
 
 
 def save_history(project_root: Path, entry: Dict[str, Any]) -> None:

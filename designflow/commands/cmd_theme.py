@@ -7,7 +7,9 @@ from ..config import (
     load_config,
     save_config,
     load_themes,
+    save_themes,
     Theme,
+    DEFAULT_THEMES,
 )
 from ..utils import (
     print_header,
@@ -211,12 +213,7 @@ def create_theme(name, display_name, description, primary, accent, background, t
         new_theme.palette["text"] = text
 
     themes[name] = new_theme
-
-    themes_path = project_root / "themes.yaml"
-    import yaml
-    custom_themes = [v for k, v in themes.items() if k not in ["default", "elegant", "vibrant", "dark", "warm"]]
-    with open(themes_path, "w", encoding="utf-8") as f:
-        yaml.dump({"themes": [t.to_dict() for t in custom_themes]}, f, default_flow_style=False, allow_unicode=True)
+    save_themes(project_root, themes)
 
     print_success(f"主题 '{name}' 已创建")
 
@@ -274,14 +271,14 @@ def modify_theme(name, primary, secondary, accent, background, text,
     if padding:
         theme_obj.layout["padding"] = padding
 
-    from ..config import DEFAULT_THEMES
-    custom_themes = [v for k, v in themes.items() if k not in DEFAULT_THEMES.keys()]
-    themes_path = project_root / "themes.yaml"
-    import yaml
-    with open(themes_path, "w", encoding="utf-8") as f:
-        yaml.dump({"themes": [t.to_dict() for t in custom_themes]}, f, default_flow_style=False, allow_unicode=True)
+    save_themes(project_root, themes)
 
-    print_success(f"主题 '{name}' 已更新")
+    config = load_config(project_root)
+    if config.current_theme == name:
+        config.updated_at = timestamp()
+        save_config(project_root, config)
+
+    print_success(f"主题 '{name}' 已更新并持久化保存")
     palette_str = " ".join([f"[{c}]██[/]" for c in list(theme_obj.palette.values())[:5]])
     print_info(f"当前色板: {palette_str}")
 

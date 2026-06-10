@@ -125,11 +125,6 @@ def create_cover_image(
         except Exception:
             pass
 
-    if add_overlay:
-        overlay = create_overlay((width, height), palette.get("primary", "#000000"),
-                                layout.get("overlay_opacity", 0.3))
-        base = Image.alpha_composite(base.convert("RGBA"), overlay).convert("RGB")
-
     draw = ImageDraw.Draw(base)
 
     title_font = get_font(theme.fonts.get("title", "Microsoft YaHei Bold"),
@@ -140,7 +135,6 @@ def create_cover_image(
     text_color = hex_to_rgb(palette.get("text_light", "#FFFFFF"))
 
     content_width = width - 2 * padding
-    content_height = height - 2 * padding
 
     title_lines = wrap_text(article.title, title_font, content_width, draw)
     subtitle_lines = wrap_text(article.subtitle, subtitle_font, content_width, draw) if article.subtitle else []
@@ -151,14 +145,34 @@ def create_cover_image(
 
     total_title_height = len(title_lines) * title_size * line_spacing
     total_subtitle_height = len(subtitle_lines) * subtitle_size * line_spacing if subtitle_lines else 0
-    total_height = total_title_height + total_subtitle_height + (40 if subtitle_lines else 0)
+    text_block_height = total_title_height + total_subtitle_height + (40 if subtitle_lines else 0)
+    overlay_padding = 40
+    overlay_height = int(text_block_height + 2 * overlay_padding)
+
+    if add_overlay:
+        if overlay_position == "bottom":
+            overlay_box = (0, height - overlay_height, width, height)
+        elif overlay_position == "top":
+            overlay_box = (0, 0, width, overlay_height)
+        else:
+            overlay_y = (height - overlay_height) // 2
+            overlay_box = (0, overlay_y, width, overlay_y + overlay_height)
+
+        overlay_color = hex_to_rgb(palette.get("primary", "#000000"))
+        overlay_alpha = int(255 * layout.get("overlay_opacity", 0.5))
+        base_rgba = base.convert("RGBA")
+        overlay_layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        overlay_draw = ImageDraw.Draw(overlay_layer)
+        overlay_draw.rectangle(overlay_box, fill=overlay_color + (overlay_alpha,))
+        base = Image.alpha_composite(base_rgba, overlay_layer).convert("RGB")
+        draw = ImageDraw.Draw(base)
 
     if overlay_position == "bottom":
-        y_start = height - padding - total_height
+        y_start = height - overlay_padding - text_block_height
     elif overlay_position == "center":
-        y_start = (height - total_height) // 2
+        y_start = (height - text_block_height) // 2
     else:
-        y_start = padding
+        y_start = overlay_padding
 
     y = y_start
     for line in title_lines:
@@ -177,7 +191,7 @@ def create_cover_image(
     if overlay_position == "bottom":
         bar_y = y_start - bar_height - 20
     else:
-        bar_y = y_start + total_height + 20
+        bar_y = y_start + text_block_height + 20
     draw.rectangle([(padding, bar_y), (padding + bar_width, bar_y + bar_height)], fill=accent_color)
 
     return base
@@ -390,6 +404,7 @@ def compose_article_images(
     fonts_dir: Optional[Path] = None,
     include_quote: bool = True,
     numbering: Optional[Tuple[int, int]] = None,
+    overlay_position: str = "bottom",
 ) -> list:
     output_dir.mkdir(parents=True, exist_ok=True)
     generated = []
@@ -415,12 +430,15 @@ def compose_article_images(
 
     for preset in presets:
         preset_name = preset.name
-        cover = create_cover_image(article, theme, preset, source_image, fonts_dir)
+        cover = create_cover_image(
+            article, theme, preset, source_image, fonts_dir,
+            overlay_position=overlay_position,
+        )
 
         if numbering:
             cover = add_numbering(cover, numbering[0], numbering[1])
 
-        filename = f"{article_slug}_{preset_name}_cover.png"
+        filename = f"{article_slug}_{preset_name}_cover_{overlay_position}.png"
         output_path = output_dir / filename
         cover.save(output_path, "PNG", dpi=(300, 300))
         generated.append({

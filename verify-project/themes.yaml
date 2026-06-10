@@ -1,0 +1,21 @@
+themes:
+- description: 简洁大气的现代风格，适合大多数内容
+  display_name: 默认简约
+  fonts:
+    body: Microsoft YaHei
+    quote: Georgia Italic
+    subtitle: Microsoft YaHei
+    title: Microsoft YaHei Bold
+  layout:
+    overlay_opacity: 0.3
+    padding: 60
+    subtitle_size: 36
+    title_size: 72
+  name: default
+  palette:
+    accent: '#00FF00'
+    background: '#FFFFFF'
+    primary: '#FF0000'
+    secondary: '#636E72'
+    text: '#2D3436'
+    text_light: '#FFFFFF'

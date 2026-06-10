@@ -77,9 +77,18 @@ def export_zip(input_dir, output_path, name, include_metadata, include_manifest)
 
     default_name = f"{config.name}_issue{config.issue}_{timestamp_short()}"
     zip_name = name or default_name
-    output_dir = output_path or dirs["export"]
-    output_dir.mkdir(parents=True, exist_ok=True)
-    zip_path = output_dir / f"{zip_name}.zip"
+
+    if output_path is None:
+        output_dir = dirs["export"]
+        output_dir.mkdir(parents=True, exist_ok=True)
+        zip_path = output_dir / f"{zip_name}.zip"
+    elif output_path.suffix.lower() == ".zip":
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        zip_path = output_path
+    else:
+        output_dir = output_path
+        output_dir.mkdir(parents=True, exist_ok=True)
+        zip_path = output_dir / f"{zip_name}.zip"
 
     print_info(f"打包 {len(images)} 个文件")
     print_info(f"输入目录: {input_dir}")

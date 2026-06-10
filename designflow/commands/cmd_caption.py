@@ -43,13 +43,25 @@ def caption():
 @click.option("--opacity", type=click.FloatRange(0.1, 1.0), default=0.6,
               help="水印透明度（0.1-1.0）")
 @click.option("--font-size", type=int, help="水印字号（自动计算）")
-@click.option("--replace", "-r", is_flag=True, help="替换现有水印（重新生成）")
+@click.option("--replace", "-r", is_flag=True, help="替换现有水印（从源图重新生成，而非叠加）")
 @click.option("--remove", is_flag=True, help="移除水印（不添加新水印）")
 def add_watermark_cmd(text, input_dir, output_dir, position, opacity, font_size, replace, remove):
     """
-    为图片添加或替换水印。
+    为图片添加、替换或移除水印。
+
+    使用 --replace 时会优先从 composed 目录（无水印源图）重新处理，
+    确保不会出现水印叠加问题。若找不到源图则会提示并跳过。
     """
-    print_header("添加水印" if not remove else "移除水印")
+    if replace and remove:
+        print_error("--replace 和 --remove 不能同时使用")
+        raise click.Abort()
+
+    if replace:
+        print_header("替换水印（从源图重新生成）")
+    elif remove:
+        print_header("移除水印")
+    else:
+        print_header("添加水印")
 
     project_root = find_project_root()
     if not project_root:
@@ -64,17 +76,29 @@ def add_watermark_cmd(text, input_dir, output_dir, position, opacity, font_size,
         print_warning("未指定水印文字，将使用项目名称")
         watermark_text = config.name
 
-    input_dir = input_dir or dirs["resized"]
-    if not input_dir.exists():
-        print_error(f"输入目录不存在: {input_dir}")
+    effective_input_dir = input_dir
+    source_dir = None
+    if replace:
+        if dirs["composed"].exists():
+            source_dir = dirs["composed"]
+        else:
+            print_error("找不到 composed 源图目录，无法使用 --replace 模式")
+            print_info("请先运行 designflow compose 生成源图，或不使用 --replace")
+            raise click.Abort()
+        print_info(f"替换模式：将从 {source_dir} 读取源图重新添加水印")
+        effective_input_dir = source_dir
+
+    effective_input_dir = effective_input_dir or dirs["resized"]
+    if not effective_input_dir.exists():
+        print_error(f"输入目录不存在: {effective_input_dir}")
         raise click.Abort()
 
     output_dir = output_dir or dirs["captions"]
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    images = find_images(input_dir, recursive=True)
+    images = find_images(effective_input_dir, recursive=True)
     if not images:
-        print_error(f"在 {input_dir} 中未找到图片")
+        print_error(f"在 {effective_input_dir} 中未找到图片")
         raise click.Abort()
 
     print_info(f"处理 {len(images)} 张图片")
@@ -84,6 +108,7 @@ def add_watermark_cmd(text, input_dir, output_dir, position, opacity, font_size,
         print_info(f"透明度: {opacity}")
 
     processed = []
+    skipped = []
 
     with click.progressbar(images, label="处理中", show_pos=True) as bar:
         for img_path in bar:
@@ -105,10 +130,11 @@ def add_watermark_cmd(text, input_dir, output_dir, position, opacity, font_size,
 
                     processed.append({
                         "path": output_path,
-                        "action": "removed" if remove else "added",
+                        "action": "removed" if remove else ("replaced" if replace else "added"),
                     })
 
             except Exception as e:
+                skipped.append((img_path.name, str(e)))
                 print_error(f"处理失败 '{img_path.name}': {str(e)}")
 
     if not remove:
@@ -123,12 +149,24 @@ def add_watermark_cmd(text, input_dir, output_dir, position, opacity, font_size,
         "position": position,
         "opacity": opacity,
         "processed": len(processed),
+        "skipped": len(skipped),
         "remove": remove,
+        "replace": replace,
     }
     save_history(project_root, history_entry)
 
-    action_str = "移除" if remove else "添加"
+    if replace:
+        action_str = "替换"
+    elif remove:
+        action_str = "移除"
+    else:
+        action_str = "添加"
+
     print_success(f"成功{action_str}水印，处理 {len(processed)} 张图片")
+    if skipped:
+        print_warning(f"跳过 {len(skipped)} 张图片")
+        for name, reason in skipped[:3]:
+            print_info(f"  • {name}: {reason}")
     print_info(f"输出目录: {output_dir}")
 
 

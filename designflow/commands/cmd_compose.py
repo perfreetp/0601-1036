@@ -142,6 +142,7 @@ def compose(theme, articles, sizes, all_sizes, no_quote, numbering, overlay_posi
                     fonts_dir=dirs["fonts"],
                     include_quote=not no_quote,
                     numbering=num_tuple,
+                    overlay_position=overlay_position,
                 )
                 total_generated.extend(generated)
             except Exception as e:

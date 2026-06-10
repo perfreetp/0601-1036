@@ -170,6 +170,8 @@ def import_images(source, recursive, move, pattern):
 
     imported = []
     skipped = []
+    matched_any = False
+    matched_count = 0
 
     with click.progressbar(images, label="导入中", show_pos=True) as bar:
         for img_path in bar:
@@ -197,6 +199,8 @@ def import_images(source, recursive, move, pattern):
                 matched_article = article_titles.get(img_slug)
                 if matched_article and not matched_article.image_path:
                     matched_article.image_path = target_path.name
+                    matched_any = True
+                    matched_count += 1
 
                 imported.append({
                     "name": target_path.name,
@@ -207,7 +211,7 @@ def import_images(source, recursive, move, pattern):
             except Exception as e:
                 skipped.append((img_path.name, str(e)))
 
-    if matched_article:
+    if matched_any:
         save_articles(project_root, articles)
 
     if imported:

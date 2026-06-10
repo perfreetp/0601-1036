@@ -1,0 +1,19 @@
+# 文章标题示例文件
+# 格式说明：每行以 key: value 形式填写，title 为必填项
+# 支持的字段：title, subtitle, summary, quote, author, keywords, image
+
+title: 数字时代的创意设计革命
+subtitle: AI 如何重塑内容创作工作流
+summary: 本文探讨人工智能技术如何改变创意设计行业的工作方式。
+quote: 创意不会被替代，而是被赋能。
+author: 张明
+keywords: AI, 设计, 创意, 未来
+image: sample_01.jpg
+
+title: 品牌视觉的色彩心理学
+subtitle: 如何用色彩传递品牌情感
+summary: 深入解析色彩在品牌设计中的作用。
+quote: 色彩是品牌与用户情感沟通的第一语言。
+author: 李婷
+keywords: 品牌, 色彩, 心理学
+image: sample_02.jpg

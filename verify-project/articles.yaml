@@ -1,0 +1,43 @@
+articles:
+- author: 张明
+  id: art_6eb15151
+  image_path: sample_01.jpg
+  keywords:
+  - AI
+  - 设计
+  - 创意
+  - 未来
+  metadata: {}
+  order: 1
+  quote: 创意不会被替代，而是被赋能。
+  subtitle: AI 如何重塑内容创作工作流
+  summary: 本文探讨人工智能技术如何改变创意设计行业的工作方式，以及设计师如何适应这一变革。
+  title: 数字时代的创意设计革命
+- author: 李婷
+  id: art_d4ad38e6
+  image_path: sample_02.jpg
+  keywords:
+  - 品牌
+  - 色彩
+  - 心理学
+  - 视觉
+  metadata: {}
+  order: 2
+  quote: 色彩是品牌与用户情感沟通的第一语言。
+  subtitle: 如何用色彩传递品牌情感
+  summary: 深入解析色彩在品牌设计中的作用，以及如何利用心理学原理提升视觉传播效果。
+  title: 品牌视觉的色彩心理学
+- author: 王浩
+  id: art_b80a9909
+  image_path: sample_03.jpg
+  keywords:
+  - 移动端
+  - UI
+  - 趋势
+  - '2024'
+  metadata: {}
+  order: 3
+  quote: 好的设计是隐形的，它让用户专注于内容本身。
+  subtitle: 2024年值得关注的界面设计方向
+  summary: 从极简主义到沉浸式体验，盘点今年最具影响力的移动端设计趋势。
+  title: 移动端设计的十大趋势
