@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "designflow"
+version = "1.0.0"
+description = "创意设计平台命令行工具 - 电子刊物编辑批量生成文章配图和社媒预览"
+requires-python = ">=3.9"
+dependencies = [
+    "click>=8.1.0",
+    "Pillow>=10.0.0",
+    "PyYAML>=6.0",
+    "rich>=13.0.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.scripts]
+designflow = "designflow.cli:cli"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["designflow*"]

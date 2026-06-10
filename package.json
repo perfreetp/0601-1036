@@ -1,0 +1,13 @@
+{
+  "name": "designflow-cli",
+  "version": "1.0.0",
+  "description": "创意设计平台命令行工具",
+  "main": "index.js",
+  "scripts": {
+    "build": "python -m pip install -e .",
+    "dev": "python -m designflow"
+  },
+  "keywords": ["design", "cli", "editorial", "creative"],
+  "author": "DesignFlow Team",
+  "license": "MIT"
+}
